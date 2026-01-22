@@ -1,71 +1,56 @@
-<!DOCTYPE html>
-<html lang="en-us">
-<head>
-    <base href="https://cdn.jsdelivr.net/gh/genizy/web-port@main/fears-to-fathom/home-alone/">
-    <meta charset="utf-8" />
-    <style>
-        * { margin: 0; padding: 0; border: 0; overflow: hidden; }
-        body { background: #000; position: fixed; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-        #unityContainer { width: 100%; height: 100%; }
-        #loading-text { color: white; font-size: 30px; font-family: sans-serif; text-align: center; position: absolute; z-index: 10; }
-    </style>
-    <script src="Build/UnityLoader.js"></script>
-    <script>
-        let max = 39; // Total parts for this specific game
-        let done = 0;
+<script>
+    let max = 39;
+    let done = 0;
 
-        async function mergeFiles(fileParts) {
-            // This downloads all 39 parts AT THE SAME TIME (Parallel)
-            const downloadPromises = fileParts.map((url, index) => 
-                fetch(url).then(res => {
-                    if (!res.ok) throw new Error();
-                    return res.arrayBuffer();
-                }).then(data => {
-                    done++;
-                    document.querySelector("#loading-text").textContent = `FAST LOADING... (${done}/${max})`;
-                    return { index, data };
-                })
-            );
+    async function mergeFiles(fileParts) {
+        const downloadPromises = fileParts.map((url, index) => 
+            fetch(url, { mode: 'cors' }).then(res => res.arrayBuffer())
+            .then(data => {
+                done++;
+                document.querySelector("#loading-text").textContent = `FAST LOADING... (${done}/${max})`;
+                return { index, data };
+            })
+        );
 
-            const results = await Promise.all(downloadPromises);
-            results.sort((a, b) => a.index - b.index);
-            return URL.createObjectURL(new Blob(results.map(r => r.data)));
-        }
+        const results = await Promise.all(downloadPromises);
+        results.sort((a, b) => a.index - b.index);
+        // We specify the type here to help Unity recognize the data
+        return URL.createObjectURL(new Blob(results.map(r => r.data), { type: 'application/octet-stream' }));
+    }
 
-        function getParts(file, start, end) {
-            let parts = [];
-            for (let i = start; i <= end; i++) { parts.push(file + ".part" + i); }
-            return parts;
-        }
+    function getParts(file, start, end) {
+        let parts = [];
+        for (let i = start; i <= end; i++) { parts.push(file + ".part" + i); }
+        return parts;
+    }
 
-        Promise.all([
-            mergeFiles(getParts("Build/FTFHAPort.data.unityweb", 1, 39)),
-        ]).then(([dataUrl]) => {
-            var json = {
-                companyName: "Rayll",
-                productName: "Fears To Fathom",
-                dataUrl: dataUrl, // Uses the merged file
-                wasmCodeUrl: "FTFHAPort.wasm.code.unityweb",
-                wasmFrameworkUrl: "FTFHAPort.wasm.framework.unityweb",
-                TOTAL_MEMORY: 536870912,
-                graphicsAPI: ["WebGL 2.0", "WebGL 1.0"],
-                webglContextAttributes: { preserveDrawingBuffer: false },
-                splashScreenStyle: "Dark",
-                backgroundColor: "#231F20",
-            };
+    Promise.all([
+        mergeFiles(getParts("Build/FTFHAPort.data.unityweb", 1, 39)),
+    ]).then(([dataUrl]) => {
+        var json = {
+            companyName: "Rayll",
+            productName: "Fears To Fathom",
+            dataUrl: dataUrl,
+            wasmCodeUrl: "FTFHAPort.wasm.code.unityweb",
+            wasmFrameworkUrl: "FTFHAPort.wasm.framework.unityweb",
+            TOTAL_MEMORY: 536870912,
+            graphicsAPI: ["WebGL 2.0", "WebGL 1.0"],
+            webglContextAttributes: { preserveDrawingBuffer: false },
+            splashScreenStyle: "Dark",
+            backgroundColor: "#231F20",
+        };
 
+        // Added a tiny timeout to prevent the 'Script Error' during initialization
+        setTimeout(() => {
             UnityLoader.instantiate("unityContainer", json, {
                 Module: {
                     onRuntimeInitialized: function () {
                         document.querySelector("#loading-text").remove();
                     },
+                    // This helps catch the specific error in the console
+                    onError: function(err) { console.error(err); }
                 },
             });
-        });
-    </script>
-</head>
-<body>
-    <div id="loading-text">PREPARING ASSETS...</div>
-    <div id="unityContainer"></div>
-</body>
-</html>
+        }, 100);
+    });
+</script>
